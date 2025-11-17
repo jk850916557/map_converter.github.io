@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>百度地图转高德地图导航</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            background: #f5f5f5; 
+            font-family: system-ui, sans-serif; 
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 30px auto; 
+            padding: 25px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            min-height: 120px;
+            font-family: monospace;
+            resize: vertical;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .btn { 
+            display: inline-block; 
+            padding: 12px 24px; 
+            background: #f76160; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: 500; 
+            margin-right: 10px;
+            border: none;
+            cursor: pointer;
+            font-family: system-ui, sans-serif;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #e6504f;
+        }
+        .result-area {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        .tip { 
+            color: #666; 
+            font-size: 14px; 
+            line-height: 1.6; 
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f7ff;
+            border-left: 3px solid #4285f4;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>百度地图转高德地图导航链接</h2>
+        
+        <div class="input-group">
+            <label for="baiduUrl">请输入百度地图导航链接：</label>
+            <textarea id="baiduUrl" placeholder="例如：baidumap://map/direction?origin=...&destination=...&viaPoints=...">baidumap://map/direction?car_type=DEFAULT&origin=40.087908,116.317518&destination=40.046014,116.283174&coord_type=gcj02&mode=driving&src=wuanrenwen&viaPoints=%7B%22viaPoints%22%3A%5B%7B%22lat%22%3A%2240.088553%22%2C%22lng%22%3A%22116.316402%22%7D%2C%7B%22lat%22%3A%2240.089041%22%2C%22lng%22%3A%22116.314508%22%7D%2C%7B%22lat%22%3A%2240.088778%22%2C%22lng%22%3A%22116.303436%22%7D%2C%7B%22lat%22%3A%2240.092807%22%2C%22lng%22%3A%22116.300395%22%7D%2C%7B%22lat%22%3A%2240.081713%22%2C%22lng%22%3A%22116.26618%22%7D%2C%7B%22lat%22%3A%2240.043304%22%2C%22lng%22%3A%22116.284505%22%7D%2C%7B%22lat%22%3A%2240.044323%22%2C%22lng%22%3A%22116.284693%22%7D%5D%7D</textarea>
+        </div>
+
+        <button class="btn" onclick="convertUrl()">转换为高德地图链接</button>
+        <button class="btn" onclick="clearAll()">清空内容</button>
+
+        <div class="result-area">
+            <label>转换结果（高德地图链接）：</label>
+            <textarea id="amapUrl" readonly placeholder="转换后的高德地图链接将显示在这里"></textarea>
+        </div>
+
+        <a id="mapLink" href="" class="btn" style="display: block; text-align: center; margin-top: 15px;">
+            打开高德地图导航
+        </a>
+
+        <div class="tip">
+            <strong>使用说明：</strong><br>
+            1. 在上方输入框粘贴百度地图导航链接（baidumap:// 开头）<br>
+            2. 点击"转换为高德地图链接"按钮进行转换<br>
+            3. 转换后的链接会显示在结果框中，点击"打开高德地图导航"即可使用<br>
+            4. 支持解析起点、终点和途经点信息并自动转换格式
+        </div>
+    </div>
+
+    <script>
+        // 解析百度地图链接并转换为高德地图链接
+        function convertUrl() {
+            const baiduUrl = document.getElementById('baiduUrl').value.trim();
+            const amapUrlInput = document.getElementById('amapUrl');
+            const mapLink = document.getElementById('mapLink');
+            const errorDiv = document.querySelector('.error');
+            
+            // 清除之前的错误信息
+            if (errorDiv) errorDiv.remove();
+            
+            try {
+                // 1. 解析百度地图参数
+                const result = extractBaiduMapCoordinates(baiduUrl);
+                
+                // 2. 构建高德地图链接
+                let transferUrl = "amapuri://route/plan/?sourceApplication=wuanrenwen" +
+                    "&slat=" + encodeURIComponent(result.origin.lat) +
+                    "&slon=" + encodeURIComponent(result.origin.lng) +
+                    "&dlat=" + encodeURIComponent(result.destination.lat) +
+                    "&dlon=" + encodeURIComponent(result.destination.lng) +
+                    "&dev=0&t=0";
+                
+                // 添加途经点信息
+                if (result.viaPointsCount > 0) {
+                    transferUrl += "&vian=" + result.viaPointsCount +
+                        "&vialats=" + encodeURIComponent(result.viaLats.join('|')) +
+                        "&vialons=" + encodeURIComponent(result.viaLngs.join('|')) +
+                        "&vianames=" + encodeURIComponent(result.viaNames.join('|'));
+                }
+                
+                // 显示结果并更新链接
+                amapUrlInput.value = transferUrl;
+                mapLink.href = transferUrl;
+                
+            } catch (e) {
+                // 显示错误信息
+                const errorElement = document.createElement('div');
+                errorElement.className = 'error';
+                errorElement.textContent = '转换失败: ' + e.message;
+                document.querySelector('.result-area').after(errorElement);
+            }
+        }
+
+        // 解析百度地图链接的坐标信息（JavaScript实现Python逻辑）
+        function extractBaiduMapCoordinates(url) {
+            // 1. 解析URL参数
+            const urlParts = url.split('?');
+            if (urlParts.length < 2) {
+                throw new Error('无效的百度地图链接格式');
+            }
+            
+            const queryString = urlParts[1];
+            const queryParams = {};
+            
+            // 解析查询参数
+            queryString.split('&').forEach(param => {
+                const [key, value] = param.split('=');
+                if (key && value) {
+                    queryParams[key] = decodeURIComponent(value);
+                }
+            });
+
+            const result = {};
+
+            // 2. 提取起点坐标
+            if (!queryParams.origin) {
+                throw new Error('未找到起点参数(origin)');
+            }
+            const [originLat, originLng] = queryParams.origin.split(',');
+            if (!originLat || !originLng) {
+                throw new Error('起点坐标格式错误');
+            }
+            result.origin = { lat: originLat, lng: originLng };
+
+            // 3. 提取终点坐标
+            if (!queryParams.destination) {
+                throw new Error('未找到终点参数(destination)');
+            }
+            const [destLat, destLng] = queryParams.destination.split(',');
+            if (!destLat || !destLng) {
+                throw new Error('终点坐标格式错误');
+            }
+            result.destination = { lat: destLat, lng: destLng };
+
+            // 4. 提取途经点
+            result.viaPointsCount = 0;
+            result.viaLats = [];
+            result.viaLngs = [];
+            result.viaNames = [];
+
+            if (queryParams.viaPoints) {
+                try {
+                    const viaPointsData = JSON.parse(queryParams.viaPoints);
+                    if (viaPointsData.viaPoints && Array.isArray(viaPointsData.viaPoints)) {
+                        result.viaPointsCount = viaPointsData.viaPoints.length;
+                        viaPointsData.viaPoints.forEach((point, index) => {
+                            result.viaLats.push(point.lat);
+                            result.viaLngs.push(point.lng);
+                            result.viaNames.push(`途经点${index + 1}`);
+                        });
+                    }
+                } catch (e) {
+                    throw new Error('途经点解析错误: ' + e.message);
+                }
+            }
+
+            return result;
+        }
+
+        // 清空所有输入
+        function clearAll() {
+            document.getElementById('baiduUrl').value = '';
+            document.getElementById('amapUrl').value = '';
+            document.getElementById('mapLink').href = '';
+            const errorDiv = document.querySelector('.error');
+            if (errorDiv) errorDiv.remove();
+        }
+    </script>
+</body>
+</html>
